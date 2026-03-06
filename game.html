@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Reaction Box Game</title>
+
+<style>
+
+body{
+    font-family: Arial, sans-serif;
+    background:#111;
+    color:white;
+    text-align:center;
+}
+
+#game{
+    position:relative;
+    width:800px;
+    height:500px;
+    margin:auto;
+    background:#222;
+    border:2px solid white;
+    overflow:hidden;
+}
+
+.box{
+    position:absolute;
+    width:40px;
+    height:40px;
+    background:lime;
+    cursor:pointer;
+}
+
+.bomb{
+    background:red;
+}
+
+#stats{
+    margin-top:10px;
+}
+
+#endScreen{
+    display:none;
+    margin-top:20px;
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>Reaction Box Game</h1>
+
+<div id="stats">
+Time: <span id="time">30</span> |
+Snakes: <span id="snakes">0</span> |
+Boxes: <span id="boxes">0</span> |
+Bombs: <span id="bombs">0</span>
+</div>
+
+<div id="game"></div>
+
+<div id="endScreen">
+<h2>Game Over</h2>
+<p id="finalStats"></p>
+</div>
+
+<script>
+
+const game = document.getElementById("game")
+
+let time = 30
+let snakes = 0
+let boxesClicked = 0
+let bombsHit = 0
+let totalClicks = 0
+
+let reactionTimes = []
+let spawnRate = 1200
+
+let lastSpawn = Date.now()
+
+function updateUI(){
+    document.getElementById("time").textContent = time
+    document.getElementById("snakes").textContent = snakes
+    document.getElementById("boxes").textContent = boxesClicked
+    document.getElementById("bombs").textContent = bombsHit
+}
+
+function spawnObject(){
+
+    const obj = document.createElement("div")
+    obj.classList.add("box")
+
+    const isBomb = Math.random() < 0.25
+
+    if(isBomb){
+        obj.classList.add("bomb")
+    }
+
+    const x = Math.random() * (game.clientWidth - 40)
+    const y = Math.random() * (game.clientHeight - 40)
+
+    obj.style.left = x + "px"
+    obj.style.top = y + "px"
+
+    const spawnTime = Date.now()
+
+    obj.onclick = function(){
+
+        totalClicks++
+
+        const reaction = Date.now() - spawnTime
+        reactionTimes.push(reaction)
+
+        if(isBomb){
+            bombsHit++
+            time -= 30
+        }
+        else{
+            boxesClicked++
+            snakes++
+            time += 5
+        }
+
+        obj.remove()
+        updateUI()
+    }
+
+    game.appendChild(obj)
+
+    setTimeout(()=>{
+
+        if(obj.parentNode){
+            obj.remove()
+        }
+
+    },2000)
+
+}
+
+function gameLoop(){
+
+    const now = Date.now()
+
+    if(now - lastSpawn > spawnRate){
+        spawnObject()
+        lastSpawn = now
+    }
+
+}
+
+function averageReaction(){
+
+    if(reactionTimes.length === 0) return 0
+
+    let sum = 0
+    reactionTimes.forEach(t => sum += t)
+
+    return Math.round(sum / reactionTimes.length)
+
+}
+
+function accuracy(){
+
+    if(totalClicks === 0) return 0
+    return boxesClicked / totalClicks
+}
+
+function rank(){
+
+    const acc = accuracy()
+
+    if(acc > 0.95) return "S"
+    if(acc > 0.85) return "A"
+    if(acc > 0.7) return "B"
+    if(acc > 0.5) return "C"
+    if(acc > 0.3) return "D"
+
+    return "F"
+}
+
+function endGame(){
+
+    clearInterval(timer)
+    clearInterval(loop)
+
+    game.innerHTML = ""
+
+    const stats =
+    `
+    Snakes: ${snakes}<br>
+    Boxes Clicked: ${boxesClicked}<br>
+    Bombs Hit: ${bombsHit}<br>
+    Accuracy: ${(accuracy()*100).toFixed(1)}%<br>
+    Avg Reaction: ${averageReaction()} ms<br>
+    Rank: ${rank()}
+    `
+
+    document.getElementById("finalStats").innerHTML = stats
+    document.getElementById("endScreen").style.display = "block"
+
+}
+
+const timer = setInterval(()=>{
+
+    time--
+
+    if(time <= 0){
+        endGame()
+    }
+
+    updateUI()
+
+},1000)
+
+const loop = setInterval(gameLoop,50)
+
+updateUI()
+
+</script>
+
+</body>
+</html>
