@@ -2,68 +2,75 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Reaction Box Game</title>
+<title>Reaction Chaos</title>
 
 <style>
 
 body{
-    font-family: Arial, sans-serif;
-    background:#111;
-    color:white;
-    text-align:center;
+background:#111;
+color:white;
+font-family:Arial;
+text-align:center;
 }
 
 #game{
-    position:relative;
-    width:800px;
-    height:500px;
-    margin:auto;
-    background:#222;
-    border:2px solid white;
-    overflow:hidden;
+width:900px;
+height:550px;
+background:#222;
+margin:auto;
+position:relative;
+overflow:hidden;
+border:2px solid white;
 }
 
-.box{
-    position:absolute;
-    width:40px;
-    height:40px;
-    background:lime;
-    cursor:pointer;
+.obj{
+position:absolute;
+width:40px;
+height:40px;
+cursor:pointer;
 }
 
-.bomb{
-    background:red;
+.box{background:lime;}
+.bomb{background:red;border-radius:50%;}
+
+.particle{
+position:absolute;
+width:6px;
+height:6px;
+background:yellow;
+pointer-events:none;
 }
 
-#stats{
-    margin-top:10px;
+#shop{
+margin-top:10px;
 }
 
-#endScreen{
-    display:none;
-    margin-top:20px;
-}
+button{margin:4px}
 
 </style>
 </head>
 
 <body>
 
-<h1>Reaction Box Game</h1>
+<h1>Reaction Chaos</h1>
 
-<div id="stats">
-Time: <span id="time">30</span> |
-Snakes: <span id="snakes">0</span> |
-Boxes: <span id="boxes">0</span> |
-Bombs: <span id="bombs">0</span>
+<div>
+Time: <span id="time">30</span>
+| Snakes: <span id="snakes">0</span>
+| Combo: <span id="combo">0</span>
 </div>
 
 <div id="game"></div>
 
-<div id="endScreen">
-<h2>Game Over</h2>
-<p id="finalStats"></p>
+<div id="shop">
+
+<button onclick="buySpawn()">Faster Spawns (5🐍)</button>
+<button onclick="buyShield()">Shield (10🐍)</button>
+<button onclick="buyDouble()">Double Time (8🐍)</button>
+
 </div>
+
+<h3 id="end"></h3>
 
 <script>
 
@@ -71,150 +78,307 @@ const game = document.getElementById("game")
 
 let time = 30
 let snakes = 0
+
+let combo = 0
+let multiplier = 1
+
 let boxesClicked = 0
 let bombsHit = 0
 let totalClicks = 0
 
-let reactionTimes = []
 let spawnRate = 1200
 
-let lastSpawn = Date.now()
+let shield = false
+let doubleTime = false
+
+let cursorX = 0
+let cursorY = 0
+
+let reactionTimes = []
+
+document.addEventListener("mousemove",e=>{
+cursorX = e.clientX
+cursorY = e.clientY
+})
 
 function updateUI(){
-    document.getElementById("time").textContent = time
-    document.getElementById("snakes").textContent = snakes
-    document.getElementById("boxes").textContent = boxesClicked
-    document.getElementById("bombs").textContent = bombsHit
-}
 
-function spawnObject(){
-
-    const obj = document.createElement("div")
-    obj.classList.add("box")
-
-    const isBomb = Math.random() < 0.25
-
-    if(isBomb){
-        obj.classList.add("bomb")
-    }
-
-    const x = Math.random() * (game.clientWidth - 40)
-    const y = Math.random() * (game.clientHeight - 40)
-
-    obj.style.left = x + "px"
-    obj.style.top = y + "px"
-
-    const spawnTime = Date.now()
-
-    obj.onclick = function(){
-
-        totalClicks++
-
-        const reaction = Date.now() - spawnTime
-        reactionTimes.push(reaction)
-
-        if(isBomb){
-            bombsHit++
-            time -= 30
-        }
-        else{
-            boxesClicked++
-            snakes++
-            time += 5
-        }
-
-        obj.remove()
-        updateUI()
-    }
-
-    game.appendChild(obj)
-
-    setTimeout(()=>{
-
-        if(obj.parentNode){
-            obj.remove()
-        }
-
-    },2000)
+document.getElementById("time").textContent=time
+document.getElementById("snakes").textContent=snakes
+document.getElementById("combo").textContent=combo
 
 }
 
-function gameLoop(){
+function screenShake(){
 
-    const now = Date.now()
+document.body.style.transform="translate("+(Math.random()*10-5)+"px,"+(Math.random()*10-5)+"px)"
 
-    if(now - lastSpawn > spawnRate){
-        spawnObject()
-        lastSpawn = now
-    }
+setTimeout(()=>{document.body.style.transform="translate(0,0)"},100)
 
 }
 
-function averageReaction(){
+function particles(x,y){
 
-    if(reactionTimes.length === 0) return 0
+for(let i=0;i<10;i++){
 
-    let sum = 0
-    reactionTimes.forEach(t => sum += t)
+const p=document.createElement("div")
+p.className="particle"
 
-    return Math.round(sum / reactionTimes.length)
+p.style.left=x+"px"
+p.style.top=y+"px"
+
+game.appendChild(p)
+
+let vx=Math.random()*6-3
+let vy=Math.random()*6-3
+
+let life=20
+
+const move=setInterval(()=>{
+
+x+=vx
+y+=vy
+
+p.style.left=x+"px"
+p.style.top=y+"px"
+
+life--
+
+if(life<=0){
+
+clearInterval(move)
+p.remove()
+
+}
+
+},16)
+
+}
+
+}
+
+function spawn(){
+
+const obj=document.createElement("div")
+obj.classList.add("obj")
+
+const bomb=Math.random()<0.3
+
+if(bomb) obj.classList.add("bomb")
+else obj.classList.add("box")
+
+let x=Math.random()*(game.clientWidth-40)
+let y=Math.random()*(game.clientHeight-40)
+
+obj.style.left=x+"px"
+obj.style.top=y+"px"
+
+const spawnTime=Date.now()
+
+if(bomb){
+
+const ai=setInterval(()=>{
+
+const rect=obj.getBoundingClientRect()
+
+const dx=cursorX-rect.left
+const dy=cursorY-rect.top
+
+x+=dx*0.02
+y+=dy*0.02
+
+obj.style.left=x+"px"
+obj.style.top=y+"px"
+
+},16)
+
+setTimeout(()=>{
+
+particles(x,y)
+obj.remove()
+clearInterval(ai)
+
+},3000)
+
+}
+
+else{
+
+const move=setInterval(()=>{
+
+x+=Math.random()*6-3
+y+=Math.random()*6-3
+
+obj.style.left=x+"px"
+obj.style.top=y+"px"
+
+},60)
+
+setTimeout(()=>{
+
+clearInterval(move)
+obj.remove()
+
+},2000)
+
+}
+
+obj.onclick=()=>{
+
+totalClicks++
+
+const reaction=Date.now()-spawnTime
+reactionTimes.push(reaction)
+
+const rect=obj.getBoundingClientRect()
+
+particles(rect.left,rect.top)
+
+if(obj.classList.contains("bomb")){
+
+bombsHit++
+combo=0
+multiplier=1
+
+if(!shield){
+
+time-=30
+screenShake()
+
+}
+
+shield=false
+
+}else{
+
+boxesClicked++
+combo++
+
+if(combo%5==0) multiplier++
+
+let gain=5*multiplier
+
+if(doubleTime) gain*=2
+
+time+=gain
+snakes++
+
+}
+
+obj.remove()
+updateUI()
+
+}
+
+game.appendChild(obj)
+
+}
+
+function avgReaction(){
+
+let s=0
+reactionTimes.forEach(v=>s+=v)
+return Math.round(s/reactionTimes.length||0)
 
 }
 
 function accuracy(){
 
-    if(totalClicks === 0) return 0
-    return boxesClicked / totalClicks
+return boxesClicked/(totalClicks||1)
+
 }
 
 function rank(){
 
-    const acc = accuracy()
+let a=accuracy()
 
-    if(acc > 0.95) return "S"
-    if(acc > 0.85) return "A"
-    if(acc > 0.7) return "B"
-    if(acc > 0.5) return "C"
-    if(acc > 0.3) return "D"
+if(a>0.95)return"S"
+if(a>0.85)return"A"
+if(a>0.7)return"B"
+if(a>0.5)return"C"
+if(a>0.3)return"D"
+return"F"
 
-    return "F"
 }
 
 function endGame(){
 
-    clearInterval(timer)
-    clearInterval(loop)
+clearInterval(loop)
+clearInterval(timer)
 
-    game.innerHTML = ""
-
-    const stats =
-    `
-    Snakes: ${snakes}<br>
-    Boxes Clicked: ${boxesClicked}<br>
-    Bombs Hit: ${bombsHit}<br>
-    Accuracy: ${(accuracy()*100).toFixed(1)}%<br>
-    Avg Reaction: ${averageReaction()} ms<br>
-    Rank: ${rank()}
-    `
-
-    document.getElementById("finalStats").innerHTML = stats
-    document.getElementById("endScreen").style.display = "block"
+document.getElementById("end").innerHTML=
+`
+Game Over<br>
+Snakes: ${snakes}<br>
+Boxes: ${boxesClicked}<br>
+Bombs: ${bombsHit}<br>
+Accuracy: ${(accuracy()*100).toFixed(1)}%<br>
+Reaction: ${avgReaction()} ms<br>
+Rank: ${rank()}
+`
 
 }
 
-const timer = setInterval(()=>{
+function buySpawn(){
 
-    time--
+if(snakes>=5){
 
-    if(time <= 0){
-        endGame()
-    }
+snakes-=5
+spawnRate*=0.8
 
-    updateUI()
+}
+
+}
+
+function buyShield(){
+
+if(snakes>=10){
+
+snakes-=10
+shield=true
+
+}
+
+}
+
+function buyDouble(){
+
+if(snakes>=8){
+
+snakes-=8
+doubleTime=true
+
+setTimeout(()=>{
+
+doubleTime=false
+
+},10000)
+
+}
+
+}
+
+function gameLoop(){
+
+if(Math.random()<0.05){
+
+spawn()
+
+}
+
+}
+
+const loop=setInterval(gameLoop,50)
+
+const timer=setInterval(()=>{
+
+time--
+
+if(time<=0) endGame()
+
+updateUI()
 
 },1000)
-
-const loop = setInterval(gameLoop,50)
 
 updateUI()
 
