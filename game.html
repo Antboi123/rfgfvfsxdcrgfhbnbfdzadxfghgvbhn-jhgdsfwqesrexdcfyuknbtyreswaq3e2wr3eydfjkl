@@ -7,20 +7,21 @@
 <style>
 
 body{
-background:#111;
+background:#0f0f0f;
 color:white;
 font-family:Arial;
 text-align:center;
+cursor:none;
 }
 
 #game{
 width:900px;
 height:550px;
-background:#222;
 margin:auto;
+background:#1b1b1b;
+border:3px solid white;
 position:relative;
 overflow:hidden;
-border:2px solid white;
 }
 
 .obj{
@@ -30,26 +31,50 @@ height:40px;
 cursor:pointer;
 }
 
-.box{background:lime;}
-.bomb{background:red;border-radius:50%;}
+.box{
+background:#00ff88;
+box-shadow:0 0 10px #00ff88;
+}
+
+.fake{
+background:#ffaa00;
+}
+
+.bomb{
+background:#ff0033;
+border-radius:50%;
+box-shadow:0 0 12px red;
+}
+
+.mine{
+background:#990000;
+border-radius:50%;
+}
 
 .particle{
 position:absolute;
-width:6px;
-height:6px;
-background:yellow;
+width:5px;
+height:5px;
+background:white;
 pointer-events:none;
 }
 
-#shop{
-margin-top:10px;
+#crosshair{
+position:fixed;
+width:20px;
+height:20px;
+border:2px solid white;
+border-radius:50%;
+pointer-events:none;
+transform:translate(-50%,-50%);
 }
 
-button{margin:4px}
+#shop button{
+margin:4px;
+}
 
 </style>
 </head>
-
 <body>
 
 <h1>Reaction Chaos</h1>
@@ -63,21 +88,22 @@ Time: <span id="time">30</span>
 <div id="game"></div>
 
 <div id="shop">
-
-<button onclick="buySpawn()">Faster Spawns (5🐍)</button>
+<button onclick="buySpawn()">Faster Spawn (5🐍)</button>
+<button onclick="buySlow()">Slow Motion (8🐍)</button>
 <button onclick="buyShield()">Shield (10🐍)</button>
-<button onclick="buyDouble()">Double Time (8🐍)</button>
-
 </div>
 
+<h2 id="announcer"></h2>
 <h3 id="end"></h3>
+
+<div id="crosshair"></div>
 
 <script>
 
 const game = document.getElementById("game")
 
 let time = 30
-let snakes = 0
+let snakes = Number(localStorage.getItem("snakes")) || 0
 
 let combo = 0
 let multiplier = 1
@@ -86,19 +112,23 @@ let boxesClicked = 0
 let bombsHit = 0
 let totalClicks = 0
 
-let spawnRate = 1200
+let spawnRate = 0.05
 
 let shield = false
-let doubleTime = false
+let slowMotion = false
 
 let cursorX = 0
 let cursorY = 0
 
 let reactionTimes = []
 
+let leaderboard = JSON.parse(localStorage.getItem("leaderboard") || "[]")
+
 document.addEventListener("mousemove",e=>{
-cursorX = e.clientX
-cursorY = e.clientY
+cursorX=e.clientX
+cursorY=e.clientY
+document.getElementById("crosshair").style.left=cursorX+"px"
+document.getElementById("crosshair").style.top=cursorY+"px"
 })
 
 function updateUI(){
@@ -109,14 +139,6 @@ document.getElementById("combo").textContent=combo
 
 }
 
-function screenShake(){
-
-document.body.style.transform="translate("+(Math.random()*10-5)+"px,"+(Math.random()*10-5)+"px)"
-
-setTimeout(()=>{document.body.style.transform="translate(0,0)"},100)
-
-}
-
 function particles(x,y){
 
 for(let i=0;i<10;i++){
@@ -124,13 +146,13 @@ for(let i=0;i<10;i++){
 const p=document.createElement("div")
 p.className="particle"
 
+let vx=Math.random()*6-3
+let vy=Math.random()*6-3
+
 p.style.left=x+"px"
 p.style.top=y+"px"
 
 game.appendChild(p)
-
-let vx=Math.random()*6-3
-let vy=Math.random()*6-3
 
 let life=20
 
@@ -145,10 +167,8 @@ p.style.top=y+"px"
 life--
 
 if(life<=0){
-
 clearInterval(move)
 p.remove()
-
 }
 
 },16)
@@ -157,15 +177,36 @@ p.remove()
 
 }
 
-function spawn(){
+function shake(){
+
+document.body.style.transform="translate("+ (Math.random()*10-5) +"px,"+(Math.random()*10-5)+"px)"
+
+setTimeout(()=>{
+document.body.style.transform="translate(0,0)"
+},100)
+
+}
+
+function announcer(msg){
+
+const a=document.getElementById("announcer")
+a.textContent=msg
+
+setTimeout(()=>a.textContent="",1000)
+
+}
+
+function spawnBox(){
 
 const obj=document.createElement("div")
 obj.classList.add("obj")
 
-const bomb=Math.random()<0.3
+let type=Math.random()
 
-if(bomb) obj.classList.add("bomb")
-else obj.classList.add("box")
+if(type<0.5)obj.classList.add("box")
+else if(type<0.65)obj.classList.add("fake")
+else if(type<0.8)obj.classList.add("bomb")
+else obj.classList.add("mine")
 
 let x=Math.random()*(game.clientWidth-40)
 let y=Math.random()*(game.clientHeight-40)
@@ -175,14 +216,15 @@ obj.style.top=y+"px"
 
 const spawnTime=Date.now()
 
-if(bomb){
+// seeker bomb
+if(obj.classList.contains("bomb")){
 
 const ai=setInterval(()=>{
 
 const rect=obj.getBoundingClientRect()
 
-const dx=cursorX-rect.left
-const dy=cursorY-rect.top
+let dx=cursorX-rect.left
+let dy=cursorY-rect.top
 
 x+=dx*0.02
 y+=dy*0.02
@@ -193,16 +235,25 @@ obj.style.top=y+"px"
 },16)
 
 setTimeout(()=>{
-
 particles(x,y)
 obj.remove()
 clearInterval(ai)
+},4000)
 
+}
+
+// mine bomb explode
+if(obj.classList.contains("mine")){
+
+setTimeout(()=>{
+particles(x,y)
+obj.remove()
 },3000)
 
 }
 
-else{
+// moving boxes
+if(obj.classList.contains("box")){
 
 const move=setInterval(()=>{
 
@@ -212,13 +263,11 @@ y+=Math.random()*6-3
 obj.style.left=x+"px"
 obj.style.top=y+"px"
 
-},60)
+},80)
 
 setTimeout(()=>{
-
 clearInterval(move)
 obj.remove()
-
 },2000)
 
 }
@@ -234,34 +283,41 @@ const rect=obj.getBoundingClientRect()
 
 particles(rect.left,rect.top)
 
-if(obj.classList.contains("bomb")){
+if(obj.classList.contains("bomb")||obj.classList.contains("mine")){
 
 bombsHit++
 combo=0
 multiplier=1
 
 if(!shield){
-
 time-=30
-screenShake()
-
+shake()
 }
 
 shield=false
 
-}else{
+}
+
+else if(obj.classList.contains("fake")){
+
+time-=5
+combo=0
+
+}
+
+else{
 
 boxesClicked++
 combo++
+snakes++
 
-if(combo%5==0) multiplier++
+if(combo%5==0){
+multiplier++
+announcer("INSANE COMBO x"+multiplier)
+}
 
 let gain=5*multiplier
-
-if(doubleTime) gain*=2
-
 time+=gain
-snakes++
 
 }
 
@@ -278,14 +334,12 @@ function avgReaction(){
 
 let s=0
 reactionTimes.forEach(v=>s+=v)
-return Math.round(s/reactionTimes.length||0)
+return Math.round(s/(reactionTimes.length||1))
 
 }
 
 function accuracy(){
-
 return boxesClicked/(totalClicks||1)
-
 }
 
 function rank(){
@@ -306,6 +360,26 @@ function endGame(){
 clearInterval(loop)
 clearInterval(timer)
 
+localStorage.setItem("snakes",snakes)
+
+leaderboard.push({
+rank:rank(),
+accuracy:accuracy(),
+reaction:avgReaction()
+})
+
+leaderboard.sort((a,b)=>b.accuracy-a.accuracy)
+
+leaderboard=leaderboard.slice(0,5)
+
+localStorage.setItem("leaderboard",JSON.stringify(leaderboard))
+
+let board="Leaderboard<br>"
+
+leaderboard.forEach((e,i)=>{
+board+=`${i+1}. ${e.rank} - ${(e.accuracy*100).toFixed(1)}%<br>`
+})
+
 document.getElementById("end").innerHTML=
 `
 Game Over<br>
@@ -314,7 +388,8 @@ Boxes: ${boxesClicked}<br>
 Bombs: ${bombsHit}<br>
 Accuracy: ${(accuracy()*100).toFixed(1)}%<br>
 Reaction: ${avgReaction()} ms<br>
-Rank: ${rank()}
+Rank: ${rank()}<br><br>
+${board}
 `
 
 }
@@ -322,9 +397,23 @@ Rank: ${rank()}
 function buySpawn(){
 
 if(snakes>=5){
-
 snakes-=5
-spawnRate*=0.8
+spawnRate+=0.02
+}
+
+}
+
+function buySlow(){
+
+if(snakes>=8){
+
+snakes-=8
+slowMotion=true
+announcer("SLOW MOTION")
+
+setTimeout(()=>{
+slowMotion=false
+},5000)
 
 }
 
@@ -333,42 +422,24 @@ spawnRate*=0.8
 function buyShield(){
 
 if(snakes>=10){
-
 snakes-=10
 shield=true
+announcer("SHIELD")
+}
+
+}
+
+function loopGame(){
+
+if(Math.random()<spawnRate){
+
+spawnBox()
 
 }
 
 }
 
-function buyDouble(){
-
-if(snakes>=8){
-
-snakes-=8
-doubleTime=true
-
-setTimeout(()=>{
-
-doubleTime=false
-
-},10000)
-
-}
-
-}
-
-function gameLoop(){
-
-if(Math.random()<0.05){
-
-spawn()
-
-}
-
-}
-
-const loop=setInterval(gameLoop,50)
+const loop=setInterval(loopGame, slowMotion ? 120 : 50)
 
 const timer=setInterval(()=>{
 
